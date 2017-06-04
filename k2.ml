@@ -253,17 +253,12 @@ let rec analysis : (Memory.t * program) -> bool -> Memory.t = fun (mem, pgm) lib
           let mem1 = analysis (assume (mem, e) lib, cmd1) lib
           and mem2 = analysis (assumeNot (mem, e) lib, cmd2) lib in 
           Memory.join mem1 mem2
-  | WHILE(e, cmd) -> Memory.top
-(*
   | WHILE(e, cmd) ->
-    let fix_iter = fun m -> join_mem mem (analysis (assume (m, e), cmd)) in
-    let rec fixpoint_widener m =    
-      if (compare_mem (join_mem m (fix_iter m)) m varlist) then m
-      else fixpoint_widener (widen_mem m (fix_iter m)) in
-     	  let fixpoint_widen = fixpoint_widener botMemory in
-  	  let rec fixpoint_narrower m = 
-            if (compare_mem (join_mem m (fix_iter m)) (fix_iter m) varlist) then m
-            else fixpoint_narrower (narrow_mem m (fix_iter m)) in
-	          let fixpoint_narrow = fixpoint_narrower fixpoint_widen in
-	          assumeNot (fixpoint_narrow, e)
-*)
+          let ff x = Memory.join mem (analysis (assume (x, e) lib, cmd) lib) in
+          let rec widener y = (* Yi *)
+              if compare_mem y (Memory.widen y (ff y)) varlist then y (* Stop condition *)
+              else widener (Memory.widen y (ff y)) in (* Next *)
+          let rec narrower z = (* Zi *)
+              if compare_mem z (Memory.narrow z (ff z)) varlist then z (* Stop condition *)
+              else narrower (Memory.narrow z (ff z)) in (* Next *)
+          assumeNot (narrower (widener Memory.bot), e) lib

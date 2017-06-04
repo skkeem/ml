@@ -70,16 +70,16 @@ struct
   
     let widen x y =
         match x,y with
-        | (BOT, _) -> y
+        | (BOT, _) -> top
         | (_, BOT) -> print_string "widen error"; BOT
         | (ELT (l1, u1), ELT (l2, u2)) ->
-                let l = if bound_leq l2 l1 then Ninfty else l1
-                and u = if bound_leq u1 u2 then Pinfty else u1 in
+                let l = if l1 <> l2 && bound_leq l2 l1 then Ninfty else l1
+                and u = if u1 <> u2 && bound_leq u1 u2 then Pinfty else u1 in
                 ELT (l, u)
 
     let narrow x y =
         match x,y with
-        | (BOT, _) -> BOT
+        | (BOT, _) -> print_string "narrow error"; BOT
         | (_, BOT) -> BOT
         | (ELT (l1, u1), ELT (l2, u2)) ->
                 ELT (bigger l1 l2, smaller u1 u2)
@@ -183,7 +183,19 @@ struct
                 ELT (Map.fold
                         (fun k v acc_m ->
                             if Map.mem k acc_m then
-                                Map.add k (Value.join v (Map.find k acc_m)) acc_m
+                                Map.add k (Value.widen v (Map.find k acc_m)) acc_m
+                            else Map.add k v acc_m
+                        ) m1 m2)
+
+    let narrow x y =
+        match x,y with
+        | (TOP, _) -> y
+        | (_, TOP) -> x
+        | (ELT m1, ELT m2) ->
+                ELT (Map.fold
+                        (fun k v acc_m ->
+                            if Map.mem k acc_m then
+                                Map.add k (Value.narrow v (Map.find k acc_m)) acc_m
                             else Map.add k v acc_m
                         ) m1 m2)
 end
