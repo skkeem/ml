@@ -27,8 +27,21 @@ include K2
 
 (* davinci analysis *)
 let rec hellAnalyzer : program -> result = fun pgm ->
-    let mem = analysis (Memory.bot, pgm) in
-    let ((i, _), _) = Memory.image mem "liberation" in
+    let memT = analysis (Memory.bot, pgm) true in
+    let ((iT, _), _) = Memory.image memT "liberation" in
+    let bT = Intv.isIn 1 iT in
+    let memF = analysis (Memory.bot, pgm) false in
+    let ((iF, _), _) = Memory.image memF "liberation" in
+    let bF = Intv.isIn 1 iF in
+
+    if bT then print_string "T:true" else print_string "T:false";
+    print_newline();
+    if bF then print_string "F:true" else print_string "F:false";
+    print_newline();
+
+    if bT && bF then DONTKNOW
+    else if bT then YES
+    else NO
     (*
     let x = (match i with
     | Intv.BOT -> (0, 0)
@@ -39,5 +52,9 @@ let rec hellAnalyzer : program -> result = fun pgm ->
     print_int (fst x);
     print_int (snd x);
     *)
-    if Intv.isIn 1 i then YES
-    else NO
+    (*
+    let memT = analysis (Memory.bot, pgm) true in
+    let ((iT, _), _) = Memory.image memT "liberation" in
+    let bT = Intv.isIn 1 iT in
+    if bT then YES else NO
+    *)

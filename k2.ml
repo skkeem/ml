@@ -56,31 +56,32 @@ let rec used_vars cmd =
 let used_varlist cmd = list_trim (used_vars cmd)
 
 (* exp evaluation *)
-let rec eval : (Memory.t * exp) -> Value.t  = fun (mem, e) ->
+let rec eval : (Memory.t * exp) -> bool -> Value.t  = fun (mem, e) lib ->
   match e with
   | NUM z -> (Intv.make (Intv.Z z) (Intv.Z z), Bool.bot), Loc'.bot
   | TRUE -> (Intv.bot, Bool.T), Loc'.bot
   | FALSE -> (Intv.bot, Bool.F), Loc'.bot
-  | READ -> ((Intv.make (Intv.Z 100) Intv.Pinfty), Bool.bot), Loc'.bot 
+  | READ -> if lib then ((Intv.make (Intv.Z 100) Intv.Pinfty), Bool.bot), Loc'.bot 
+            else ((Intv.make Intv.Ninfty (Intv.Z 99)), Bool.bot), Loc'.bot 
   | VAR x -> Memory.image mem x
   | DEREF x -> let ((_,_), l) = Memory.image mem x in
                Loc'.fold (fun y v -> Value.join (Memory.image mem y) v) l Value.bot
   | AT x -> (Intv.bot, Bool.bot), Loc'.make [x]
-  | ADD (e1, e2) -> let ((i1, _), _) = eval (mem, e1)
-                    and ((i2, _), _) = eval (mem, e2) in
+  | ADD (e1, e2) -> let ((i1, _), _) = eval (mem, e1) lib
+                    and ((i2, _), _) = eval (mem, e2) lib in
                     (Intv.add i1 i2, Bool.bot), Loc'.bot
-  | MINUS e -> let ((i, _), _) = eval (mem, e) in 
+  | MINUS e -> let ((i, _), _) = eval (mem, e) lib in 
                (Intv.minus i, Bool.bot), Loc'.bot 
-  | ANDALSO (e1, e2) -> let ((_, b1), _) = eval (mem, e1)
-                        and ((_, b2), _) = eval (mem, e2) in
+  | ANDALSO (e1, e2) -> let ((_, b1), _) = eval (mem, e1) lib
+                        and ((_, b2), _) = eval (mem, e2) lib in
                         (Intv.bot, Bool.nd b1 b2), Loc'.bot
-  | ORELSE (e1, e2) -> let ((_, b1), _) = eval (mem, e1)
-                       and ((_, b2), _) = eval (mem, e2) in
+  | ORELSE (e1, e2) -> let ((_, b1), _) = eval (mem, e1) lib
+                       and ((_, b2), _) = eval (mem, e2) lib in
                        (Intv.bot, Bool.orr b1 b2), Loc'.bot
-  | NOT e -> let ((_, b), _) = eval (mem, e) in
+  | NOT e -> let ((_, b), _) = eval (mem, e) lib in
              (Intv.bot, Bool.nt b), Loc'.bot
-  | LESS (e1, e2) -> let ((i1, _), _) = eval (mem, e1)
-                     and ((i2, _), _) = eval (mem, e2) in
+  | LESS (e1, e2) -> let ((i1, _), _) = eval (mem, e1) lib
+                     and ((i2, _), _) = eval (mem, e2) lib in
                      let t = Intv.less i1 i2 in
                      let b = (if t = 0 then Bool.BOT
                               else if t = 1 then Bool.F
@@ -89,7 +90,7 @@ let rec eval : (Memory.t * exp) -> Value.t  = fun (mem, e) ->
                      (Intv.bot, b), Loc'.bot
 
 (* memory filtering by boolean expression *)
-let rec assume : (Memory.t * exp) -> Memory.t = fun (mem, e) ->
+let rec assume : (Memory.t * exp) -> bool -> Memory.t = fun (mem, e) lib ->
   match e with
   | TRUE -> mem
   | FALSE -> Memory.bot
@@ -104,13 +105,13 @@ let rec assume : (Memory.t * exp) -> Memory.t = fun (mem, e) ->
           let ((_, _), l) = Memory.image mem id in
           let v = Loc'.make (List.filter (fun x -> (snd (fst (Memory.image mem x))) = Bool.T || (snd (fst (Memory.image mem x))) = Bool.TOP) (Loc'.to_list l)) in
           Memory.update mem id ((Intv.bot, Bool.bot), v)
-  | ANDALSO (e1, e2) -> assume (assume (mem, e1), e2)
-  | ORELSE (e1, e2) -> Memory.join (assume (mem, e1)) (assume (mem, e2))
-  | NOT e -> assumeNot (mem, e)
+  | ANDALSO (e1, e2) -> assume (assume (mem, e1) lib, e2) lib
+  | ORELSE (e1, e2) -> Memory.join (assume (mem, e1) lib) (assume (mem, e2) lib)
+  | NOT e -> assumeNot (mem, e) lib
   | LESS (e1, e2) -> 
           (match e1,e2 with
           | (VAR x, NUM z) ->
-                  let ((i, _), _) = eval (mem, e1) in
+                  let ((i, _), _) = eval (mem, e1) lib in
                   let ni = (match i with
                            | Intv.BOT -> Intv.bot
                            | Intv.ELT (l, u) ->
@@ -120,7 +121,7 @@ let rec assume : (Memory.t * exp) -> Memory.t = fun (mem, e) ->
                   if ni = Intv.bot then Memory.bot
                   else Memory.update mem x ((ni, Bool.bot), Loc'.bot)
           | (NUM z, VAR x) ->
-                  let ((i, _), _) = eval (mem, e2) in
+                  let ((i, _), _) = eval (mem, e2) lib in
                   let ni = (match i with
                            | Intv.BOT -> Intv.bot
                            | Intv.ELT (l, u) ->
@@ -130,7 +131,7 @@ let rec assume : (Memory.t * exp) -> Memory.t = fun (mem, e) ->
                   if ni = Intv.bot then Memory.bot
                   else Memory.update mem x ((ni, Bool.bot), Loc'.bot)
           | _ ->
-                  let ((_, b), _) = eval (mem, e) in
+                  let ((_, b), _) = eval (mem, e) lib in
                   (match b with
                   | Bool.BOT -> Memory.bot
                   | Bool.T -> mem
@@ -138,7 +139,7 @@ let rec assume : (Memory.t * exp) -> Memory.t = fun (mem, e) ->
                   | Bool.TOP -> mem))
   | _ -> Memory.bot
 and
-assumeNot : (Memory.t * exp) -> Memory.t = fun (mem, e) ->
+assumeNot : (Memory.t * exp) -> bool -> Memory.t = fun (mem, e) lib ->
   match e with
   | TRUE -> Memory.bot
   | FALSE -> mem
@@ -153,13 +154,13 @@ assumeNot : (Memory.t * exp) -> Memory.t = fun (mem, e) ->
           let ((_, _), l) = Memory.image mem id in
           let v = Loc'.make (List.filter (fun x -> (snd (fst (Memory.image mem x))) = Bool.F || (snd (fst (Memory.image mem x))) = Bool.TOP) (Loc'.to_list l)) in
           Memory.update mem id ((Intv.bot, Bool.bot), v)
-  | ANDALSO (e1, e2) -> Memory.join (assumeNot (mem, e1)) (assumeNot (mem, e2))
-  | ORELSE (e1, e2) -> assumeNot (assumeNot (mem, e1), e2)
-  | NOT e -> assume (mem, e)
+  | ANDALSO (e1, e2) -> Memory.join (assumeNot (mem, e1) lib) (assumeNot (mem, e2) lib)
+  | ORELSE (e1, e2) -> assumeNot (assumeNot (mem, e1) lib, e2) lib
+  | NOT e -> assume (mem, e) lib
   | LESS (e1, e2) -> 
           (match e1,e2 with
           | (VAR x, NUM z) ->
-                  let ((i, _), _) = eval (mem, e1) in
+                  let ((i, _), _) = eval (mem, e1) lib in
                   let ni = (match i with
                            | Intv.BOT -> Intv.bot
                            | Intv.ELT (l, u) ->
@@ -169,7 +170,7 @@ assumeNot : (Memory.t * exp) -> Memory.t = fun (mem, e) ->
                   if ni = Intv.bot then Memory.bot
                   else Memory.update mem x ((ni, Bool.bot), Loc'.bot)
           | (NUM z, VAR x) ->
-                  let ((i, _), _) = eval (mem, e2) in
+                  let ((i, _), _) = eval (mem, e2) lib in
                   let ni = (match i with
                            | Intv.BOT -> Intv.bot
                            | Intv.ELT (l, u) ->
@@ -179,7 +180,7 @@ assumeNot : (Memory.t * exp) -> Memory.t = fun (mem, e) ->
                   if ni = Intv.bot then Memory.bot
                   else Memory.update mem x ((ni, Bool.bot), Loc'.bot)
           | _ ->
-                  let ((_, b), _) = eval (mem, e) in
+                  let ((_, b), _) = eval (mem, e) lib in
                   (match b with
                   | Bool.BOT -> Memory.bot
                   | Bool.T -> Memory.bot
@@ -236,21 +237,21 @@ let rec pp_memory : memory -> id list -> unit = fun mem -> (fun varlist ->
 *)
 
 (* interval analysis for K- *)
-let rec analysis : (Memory.t * program) -> Memory.t = fun (mem, pgm) ->
+let rec analysis : (Memory.t * program) -> bool -> Memory.t = fun (mem, pgm) lib ->
   let varlist = used_varlist pgm in
   match pgm with
   | SKIP -> mem
-  | ASSIGN(id, e) -> Memory.update mem id (eval (mem, e))
+  | ASSIGN(id, e) -> Memory.update mem id (eval (mem, e) lib)
   | PTRASSIGN(id, e) -> 
-          let v = eval (mem, e) in
+          let v = eval (mem, e) lib in
           let ((_, _), l) = Memory.image mem id in
           Loc'.fold (fun y m -> Memory.weakupdate m y v) l mem
   | SEQ(cmd1, cmd2) ->
-          let mem1 = analysis (mem, cmd1) in
-          analysis (mem1, cmd2) 
+          let mem1 = analysis (mem, cmd1) lib in
+          analysis (mem1, cmd2) lib
   | IF(e, cmd1, cmd2) -> 
-          let mem1 = analysis (assume (mem, e) , cmd1)
-          and mem2 = analysis (assumeNot (mem, e) , cmd2) in 
+          let mem1 = analysis (assume (mem, e) lib, cmd1) lib
+          and mem2 = analysis (assumeNot (mem, e) lib, cmd2) lib in 
           Memory.join mem1 mem2
   | WHILE(e, cmd) -> Memory.top
 (*
