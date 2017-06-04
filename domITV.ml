@@ -47,6 +47,14 @@ struct
         | (ELT (l1, u1), ELT (l2, u2)) -> (if bound_leq u2 l1 then 1
                                            else if bound_leq u1 l2 then 2
                                            else 3)
+    let isIn e i =
+        match i with
+        | BOT -> false
+        | ELT(Ninfty, Pinfty) -> true
+        | ELT(Ninfty, Z u) -> e <= u
+        | ELT(Z l, Pinfty) -> l <= e
+        | ELT(Z l, Z u) -> l <= e && e <= u
+        | _ -> false
 
     let join x y = 
         match x,y with

@@ -29,19 +29,15 @@ include K2
 let rec hellAnalyzer : program -> result = fun pgm ->
     let mem = analysis (Memory.bot, pgm) in
     let ((i, _), _) = Memory.image mem "liberation" in
+    (*
     let x = (match i with
     | Intv.BOT -> (0, 0)
-    | Intv.ELT (Ninfty, Pinfty) -> (-100, 100)
-    | Intv.ELT (Ninfty, Z z) -> (-100, z)
-    | Intv.ELT (Z z, Pinfty) -> (z, 100)
-    | Intv.ELT (Z z1, Z z2) -> (z1, z2)) in
+    | Intv.ELT (Intv.Ninfty, Intv.Pinfty) -> (-100, 100)
+    | Intv.ELT (Intv.Ninfty, Intv.Z z) -> (-100, z)
+    | Intv.ELT (Intv.Z z, Intv.Pinfty) -> (z, 100)
+    | Intv.ELT (Intv.Z z1, Intv.Z z2) -> (z1, z2)) in
     print_int (fst x);
     print_int (snd x);
-    DONTKNOW
-    (*
-    let analysis = K.analyze pgm in
-    let liberation = analysis "liberation" in
-    if liberation = TOP then DONTKNOW
-    else if 1 in liberation then YES
-    else NO
     *)
+    if Intv.isIn 1 i then YES
+    else NO
