@@ -40,4 +40,4 @@ let rec davinciAnalyzer : program -> result =
                let rec checkall states = (match states with
                                           | [] -> YES
                                           | hd::tl -> if check hd varlist = YES then checkall tl else check hd varlist) in
-               checkall states
+               checkall states; DONTKNOW
