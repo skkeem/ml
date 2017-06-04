@@ -56,7 +56,7 @@ let rec used_vars cmd =
 let used_varlist cmd = list_trim (used_vars cmd)
 
 (* exp evaluation *)
-let rec eval : (Memory.t * exp) -> bool -> Value.t  = fun (mem, e) lib ->
+let rec eval : (Memory.tb * exp) -> bool -> Value.t  = fun (mem, e) lib ->
   match e with
   | NUM z -> (Intv.make (Intv.Z z) (Intv.Z z), Bool.bot), Loc'.bot
   | TRUE -> (Intv.bot, Bool.T), Loc'.bot
@@ -90,16 +90,16 @@ let rec eval : (Memory.t * exp) -> bool -> Value.t  = fun (mem, e) lib ->
                      (Intv.bot, b), Loc'.bot
 
 (* memory filtering by boolean expression *)
-let rec assume : (Memory.t * exp) -> bool -> Memory.t = fun (mem, e) lib ->
+let rec assume : (Memory.tb * exp) -> bool -> Memory.tb = fun (mem, e) lib ->
   match e with
   | TRUE -> mem
-  | FALSE -> Memory.bot
+  | FALSE -> Memory.bott
   | VAR id -> 
           let ((_, b), _) = Memory.image mem id in 
           (match b with
-          | Bool.BOT -> Memory.bot
+          | Bool.BOT -> Memory.bott
           | Bool.T -> mem
-          | Bool.F -> Memory.bot
+          | Bool.F -> Memory.bott
           | Bool.TOP -> Memory.update mem id ((Intv.bot, Bool.T), Loc'.bot))
   | DEREF id ->
           let ((_, _), l) = Memory.image mem id in
@@ -116,9 +116,9 @@ let rec assume : (Memory.t * exp) -> bool -> Memory.t = fun (mem, e) lib ->
                            | Intv.BOT -> Intv.bot
                            | Intv.ELT (l, u) ->
                                    if Intv.bound_leq (Intv.Z z) l then Intv.bot
-                                   else if Intv.bound_leq u (Intv.Z z) then Intv.make l u
+                                   else if Intv.bound_leq u (Intv.Z (z-1)) then Intv.make l u
                                    else Intv.make l (Intv.Z (z-1))) in
-                  if ni = Intv.bot then Memory.bot
+                  if ni = Intv.bot then Memory.bott
                   else Memory.update mem x ((ni, Bool.bot), Loc'.bot)
           | (NUM z, VAR x) ->
                   let ((i, _), _) = eval (mem, e2) lib in
@@ -126,28 +126,28 @@ let rec assume : (Memory.t * exp) -> bool -> Memory.t = fun (mem, e) lib ->
                            | Intv.BOT -> Intv.bot
                            | Intv.ELT (l, u) ->
                                    if Intv.bound_leq u (Intv.Z z) then Intv.bot
-                                   else if Intv.bound_leq (Intv.Z z) l then Intv.make l u
+                                   else if Intv.bound_leq (Intv.Z (z+1)) l then Intv.make l u
                                    else Intv.make (Intv.Z (z+1)) u) in
-                  if ni = Intv.bot then Memory.bot
+                  if ni = Intv.bot then Memory.bott
                   else Memory.update mem x ((ni, Bool.bot), Loc'.bot)
           | _ ->
                   let ((_, b), _) = eval (mem, e) lib in
                   (match b with
-                  | Bool.BOT -> Memory.bot
+                  | Bool.BOT -> Memory.bott
                   | Bool.T -> mem
-                  | Bool.F -> Memory.bot
+                  | Bool.F -> Memory.bott
                   | Bool.TOP -> mem))
-  | _ -> Memory.bot
+  | _ -> Memory.bott
 and
-assumeNot : (Memory.t * exp) -> bool -> Memory.t = fun (mem, e) lib ->
+assumeNot : (Memory.tb * exp) -> bool -> Memory.tb = fun (mem, e) lib ->
   match e with
-  | TRUE -> Memory.bot
+  | TRUE -> Memory.bott
   | FALSE -> mem
   | VAR id -> 
           let ((_, b), _) = Memory.image mem id in 
           (match b with
-          | Bool.BOT -> Memory.bot
-          | Bool.T -> Memory.bot
+          | Bool.BOT -> Memory.bott
+          | Bool.T -> Memory.bott
           | Bool.F -> mem
           | Bool.TOP -> Memory.update mem id ((Intv.bot, Bool.F), Loc'.bot))
   | DEREF id ->
@@ -165,9 +165,9 @@ assumeNot : (Memory.t * exp) -> bool -> Memory.t = fun (mem, e) lib ->
                            | Intv.BOT -> Intv.bot
                            | Intv.ELT (l, u) ->
                                    if Intv.bound_leq (Intv.Z z) l then Intv.make l u
-                                   else if Intv.bound_leq u (Intv.Z z) then Intv.bot
+                                   else if Intv.bound_leq u (Intv.Z (z-1)) then Intv.bot
                                    else Intv.make (Intv.Z z) u) in
-                  if ni = Intv.bot then Memory.bot
+                  if ni = Intv.bot then Memory.bott
                   else Memory.update mem x ((ni, Bool.bot), Loc'.bot)
           | (NUM z, VAR x) ->
                   let ((i, _), _) = eval (mem, e2) lib in
@@ -175,18 +175,18 @@ assumeNot : (Memory.t * exp) -> bool -> Memory.t = fun (mem, e) lib ->
                            | Intv.BOT -> Intv.bot
                            | Intv.ELT (l, u) ->
                                    if Intv.bound_leq u (Intv.Z z) then Intv.make l u
-                                   else if Intv.bound_leq (Intv.Z z) l then Intv.bot
+                                   else if Intv.bound_leq (Intv.Z (z+1)) l then Intv.bot
                                    else Intv.make l (Intv.Z z)) in
-                  if ni = Intv.bot then Memory.bot
+                  if ni = Intv.bot then Memory.bott
                   else Memory.update mem x ((ni, Bool.bot), Loc'.bot)
           | _ ->
                   let ((_, b), _) = eval (mem, e) lib in
                   (match b with
-                  | Bool.BOT -> Memory.bot
-                  | Bool.T -> Memory.bot
+                  | Bool.BOT -> Memory.bott
+                  | Bool.T -> Memory.bott
                   | Bool.F -> mem
                   | Bool.TOP -> mem))
-  | _ -> Memory.bot
+  | _ -> Memory.bott
 
 (*
 (* memory pretty print : "do not" change here *)
@@ -237,7 +237,7 @@ let rec pp_memory : memory -> id list -> unit = fun mem -> (fun varlist ->
 *)
 
 (* interval analysis for K- *)
-let rec analysis : (Memory.t * program) -> bool -> Memory.t = fun (mem, pgm) lib ->
+let rec analysis : (Memory.tb * program) -> bool -> Memory.tb = fun (mem, pgm) lib ->
   let varlist = used_varlist pgm in
   match pgm with
   | SKIP -> mem

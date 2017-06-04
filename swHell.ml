@@ -30,31 +30,21 @@ let rec hellAnalyzer : program -> result = fun pgm ->
     let memT = analysis (Memory.bot, pgm) true in
     let ((iT, _), _) = Memory.image memT "liberation" in
     let bT = Intv.isIn 1 iT in
+
+    (*
+    if bT then print_string "T:true" else print_string "T:false";
+    print_newline();
+    *)
+    
     let memF = analysis (Memory.bot, pgm) false in
     let ((iF, _), _) = Memory.image memF "liberation" in
     let bF = Intv.isIn 1 iF in
 
-    if bT then print_string "T:true" else print_string "T:false";
-    print_newline();
+    (*
     if bF then print_string "F:true" else print_string "F:false";
     print_newline();
+    *)
 
     if bT && bF then DONTKNOW
     else if bT then YES
     else NO
-    (*
-    let x = (match i with
-    | Intv.BOT -> (0, 0)
-    | Intv.ELT (Intv.Ninfty, Intv.Pinfty) -> (-100, 100)
-    | Intv.ELT (Intv.Ninfty, Intv.Z z) -> (-100, z)
-    | Intv.ELT (Intv.Z z, Intv.Pinfty) -> (z, 100)
-    | Intv.ELT (Intv.Z z1, Intv.Z z2) -> (z1, z2)) in
-    print_int (fst x);
-    print_int (snd x);
-    *)
-    (*
-    let memT = analysis (Memory.bot, pgm) true in
-    let ((iT, _), _) = Memory.image memT "liberation" in
-    let bT = Intv.isIn 1 iT in
-    if bT then YES else NO
-    *)

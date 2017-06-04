@@ -40,7 +40,7 @@ struct
     let minus x =
         match x with
         | BOT -> bot
-        | ELT (l, u) -> ELT (bound_minus l, bound_minus u)
+        | ELT (l, u) -> ELT (bound_minus u, bound_minus l)
     let less x y =
         match x,y with
         | (BOT, _) | (_, BOT) -> 0
@@ -175,7 +175,60 @@ module Memory =
 struct
     include Memoryy
 
-    let widen x y =
+    exception NoPath
+
+    type tb = BOT | MEM of t
+
+    let bot = MEM bot
+    let bott = BOT
+    let top = MEM top
+
+    let join x y =
+        match x,y with
+        | (BOT, _) -> y
+        | (_, BOT) -> x
+        | (MEM m1, MEM m2) -> MEM (join m1 m2)
+
+    let leq x y =
+        match x,y with
+        | (BOT, m) -> if m = bot then false else true
+        | (m, BOT) -> if m = bot then true else false
+        | (MEM m1, MEM m2) -> leq m1 m2
+
+    let image x l =
+        match x with
+        | BOT -> Value.bot
+        | MEM s -> image s l
+
+    let update x l r =
+        match x with
+        | BOT -> BOT
+        | MEM s -> MEM (update s l r)
+
+    let weakupdate x l r =
+        match x with
+        | BOT -> BOT
+        | MEM s -> MEM (weakupdate s l r)
+
+    let map f x =
+        match x with
+        | BOT -> raise NoPath
+        | MEM s -> map f s
+
+    let fold f x acc =
+        match x with
+        | BOT -> raise NoPath
+        | MEM s -> fold f s acc
+
+    let to_list x =
+        match x with
+        | BOT -> []
+        | MEM s -> to_list s
+
+    let make l =
+        MEM (make l)
+
+    let widen_ x y =
         match x,y with
         | (TOP, _) -> TOP
         | (_, TOP) -> TOP
@@ -186,8 +239,13 @@ struct
                                 Map.add k (Value.widen v (Map.find k acc_m)) acc_m
                             else Map.add k v acc_m
                         ) m1 m2)
+    let widen x y =
+        match x,y with
+        | (BOT, _) -> raise NoPath
+        | (_, BOT) -> raise NoPath
+        | (MEM m1, MEM m2) -> MEM (widen_ m1 m2)
 
-    let narrow x y =
+    let narrow_ x y =
         match x,y with
         | (TOP, _) -> y
         | (_, TOP) -> x
@@ -198,4 +256,9 @@ struct
                                 Map.add k (Value.narrow v (Map.find k acc_m)) acc_m
                             else Map.add k v acc_m
                         ) m1 m2)
+    let narrow x y =
+        match x,y with
+        | (BOT, _) -> raise NoPath
+        | (_, BOT) -> raise NoPath
+        | (MEM m1, MEM m2) -> MEM (narrow_ m1 m2)
 end
